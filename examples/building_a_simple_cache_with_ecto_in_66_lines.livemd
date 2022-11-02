@@ -1,0 +1,112 @@
+# Building a simple cache with Ecto in 66 lines
+
+```elixir
+Mix.install([
+  {:ecto_sql, "~> 3.9.0"},
+  {:ecto_qlc, "~> 0.1.0"},
+  {:postgrex, ">= 0.0.0"}
+])
+```
+
+## Setting up our Ecto schema, migration and repos
+
+```elixir
+defmodule Cache do
+  use Ecto.Schema
+
+  schema "cache" do
+    field(:data, {:array, :any})
+    timestamps(updated_at: false)
+  end
+end
+
+defmodule CreateCache do
+  use Ecto.Migration
+
+  def change do
+    create table(:cache) do
+      add(:data, {:array, :any})
+      timestamps(updated_at: false)
+    end
+  end
+end
+
+defmodule Accounts.User do
+  use Ecto.Schema
+
+  schema "users" do
+    field(:email, :string)
+    timestamps()
+  end
+end
+
+defmodule CreateUser do
+  use Ecto.Migration
+
+  def change do
+    create table(:users) do
+      add(:email, :string)
+      timestamps()
+    end
+  end
+end
+
+defmodule Repo do
+  use Ecto.Repo, otp_app: :my_app, adapter: Ecto.Adapters.Postgres
+
+  def all_cached(query, opts \\ []) do
+    RepoCache.get_or_insert(query, opts)
+  end
+end
+
+defmodule RepoCache do
+  use Ecto.Repo, otp_app: :my_app, adapter: EctoQLC.Adapters.ETS
+
+  def get_or_insert(query, opts) do
+    key = :erlang.phash2(query)
+
+    if cache = get(Cache, key) do
+      cache.data
+    else
+      data = Repo.all(query, opts)
+      insert!(%Cache{id: key, data: data})
+      data
+    end
+  end
+
+  def clear_cache do
+    delete_all(Cache)
+  end
+end
+```
+
+## Let's try it out!
+
+```elixir
+Repo.start_link(
+  username: "postgres",
+  password: "postgres",
+  database: "ecto_qlc_test",
+  hostname: "localhost"
+)
+
+RepoCache.start_link([])
+Ecto.Migrator.up(Repo, 1, CreateUser)
+Ecto.Migrator.up(RepoCache, 1, CreateUser)
+Ecto.Migrator.up(RepoCache, 2, CreateCache)
+Repo.delete_all(Accounts.User)
+RepoCache.clear_cache()
+
+user = Repo.insert!(%Accounts.User{email: "user@example.com"})
+
+[%{email: "user@example.com"}] = Repo.all(Accounts.User)
+[%{email: "user@example.com"}] = Repo.all_cached(Accounts.User)
+
+Repo.insert!(%Accounts.User{email: "user2@example.com"})
+
+[%{email: "user@example.com"}, %{email: "user2@example.com"}] = Repo.all(Accounts.User)
+[%{email: "user@example.com"}] = Repo.all_cached(Accounts.User)
+
+RepoCache.clear_cache()
+[%{email: "user@example.com"}, %{email: "user2@example.com"}] = Repo.all_cached(Accounts.User)
+```

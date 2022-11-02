@@ -1,0 +1,50 @@
+name: Elixir CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    name: Build and test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecto_qlc_test
+        ports:
+          - 5432:5432
+    strategy:
+      matrix:
+        elixir: [1.14.0]
+        otp: [25.0.4]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: ${{ matrix.elixir }} # Define the elixir version [required]
+        otp-version: ${{ matrix.otp }} # Define the OTP version [required]
+    - name: Restore dependencies cache
+      uses: actions/cache@v2
+      id: cache-mix
+      with:
+        path: |
+              deps
+              _build
+        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-${{ hashFiles('**/mix.lock') }}
+    - name: Install and compile deps
+      if: steps.cache-mix.outputs.cache-hit != 'true'
+      run: |
+        mix local.rebar --force
+        mix local.hex --force
+        mix deps.get
+        mix deps.compile
+    - name: Run test
+      run: mix test || mix test --failed
