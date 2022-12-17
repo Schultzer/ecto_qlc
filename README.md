@@ -23,7 +23,7 @@ be found at <https://hexdocs.pm/ecto_qlc>.
 
 ## Limitations
 
-The following are the current limitations. Most of these can be implemented others might not even make sense to implement, like placeholders.
+The following are the current limitations. Most of these can be implemented and others might not even make sense to implement, like placeholders.
 
 * Subqueries are only supported without parent_as since that would require implemetation of a query planner.
 * Combinations are not supported, but could be supported in a similiar way as suqueries.
@@ -48,7 +48,7 @@ Can be found under the examples directory.
 
 Most of the inspiration for this adapter comes from [Ecto SQL](https://github.com/elixir-ecto/ecto_sql) and [Etso](https://github.com/evadne/etso).
 
-Below is a non-exhustive list of similiar projects:
+Below is a non-exhaustive list of similiar projects:
 
 - https://github.com/elixir-ecto/ecto_sql
 - https://github.com/meh/amnesia
