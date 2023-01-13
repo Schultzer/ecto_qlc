@@ -48,7 +48,7 @@ defmodule EctoQLC.Adapters.Mnesia do
 
   @impl Ecto.Adapter.Transaction
   def transaction(_adapter_meta, _opts, fun) do
-    # mnesia transaction support funtions with args
+    # mnesia transaction support functions with args
     # with would allow it to forward options if needed.
     case :mnesia.transaction(fun) do
       {:aborted, reason} -> {:error, reason}

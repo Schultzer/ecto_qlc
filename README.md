@@ -25,10 +25,10 @@ be found at <https://hexdocs.pm/ecto_qlc>.
 
 The following are the current limitations. Most of these can be implemented and others might not even make sense to implement, like placeholders.
 
-* Subqueries are only supported without parent_as since that would require implemetation of a query planner.
-* Combinations are not supported, but could be supported in a similiar way as suqueries.
+* Subqueries are only supported without parent_as since that would require implementation of a query planner.
+* Combinations are not supported, but could be supported in a similar way as suqueries.
 * Windows are not supported.
-* Joins are limted to merge_join or nested_join, the qual: :left, :right, :inner, and etc will not affect the result.
+* Joins are limited to merge_join or nested_join, the qual: :left, :right, :inner, and etc will not affect the result.
 * CTE are not supported.
 * Query locks are only supported in the mnesia adapter, and only read, write or sticky_write. global locks are not supported.
 * Placeholders are not supported.
@@ -48,7 +48,7 @@ Can be found under the examples directory.
 
 Most of the inspiration for this adapter comes from [Ecto SQL](https://github.com/elixir-ecto/ecto_sql) and [Etso](https://github.com/evadne/etso).
 
-Below is a non-exhaustive list of similiar projects:
+Below is a non-exhaustive list of similar projects:
 
 - https://github.com/elixir-ecto/ecto_sql
 - https://github.com/meh/amnesia

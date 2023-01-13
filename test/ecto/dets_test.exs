@@ -300,7 +300,7 @@ defmodule EctoQLC.Adapters.DETSTest do
 
     test "preload/3", %{user: user} do
       assert %User{email: "user@example.com", sessions: [%UserSession{}, %UserSession{}, %UserSession{}]} = Repo.preload(user, [:sessions], force: true)
-      assert %User{email: "user@example.com", sessions: [%UserSession{}, %UserSession{}, %UserSession{}]} = Repo.preload(user, [:sessions], in_parrallel: false)
+      assert %User{email: "user@example.com", sessions: [%UserSession{}, %UserSession{}, %UserSession{}]} = Repo.preload(user, [:sessions], in_parallel: false)
       assert %User{email: nil, sessions: [%UserSession{}, %UserSession{}, %UserSession{}]} = Repo.preload(%User{id: user.id}, [:sessions])
     end
 

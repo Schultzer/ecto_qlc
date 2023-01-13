@@ -297,8 +297,8 @@ defmodule EctoQLC.Adapters.QLC do
       Keyword.take(Keyword.merge(adapter_meta.opts, List.wrap(table.options) ++ options), ~w[disc_copies access_mode disc_only_copies index load_order majority ram_copies record_name snmp storage_properties type local_content]a)
     end
     table = to_table(adapter_meta, table.name, table.prefix, options)
-    primary_keys = Enum.count(columns, fn {_commnad, _column, _typpe, options} -> options[:primary_key] == true end)
-    attributes = Enum.reject(columns, fn {_commnad, _column, _typpe, options} -> options[:primary_key] == true end) |> Enum.map(&elem(&1, 1))
+    primary_keys = Enum.count(columns, fn {_command, _column, _type, options} -> options[:primary_key] == true end)
+    attributes = Enum.reject(columns, fn {_command, _column, _type, options} -> options[:primary_key] == true end) |> Enum.map(&elem(&1, 1))
     attributes = if primary_keys > 1, do: [:primary_keys | attributes], else: Enum.map(columns, &elem(&1, 1))
 
     with :ok <- :mnesia.start(),
@@ -605,7 +605,7 @@ defmodule EctoQLC.Adapters.QLC do
   end
 
   # Subqurries are currently not allowed to have parent_as due to having to plan which query to execute first, an example would be if the subquery would have to match on the FK from the main query or to evaluate columns from the main query.
-  # in that case we would have to execute the main query before we could evalute the subquery for then filtering the main query based on the result of the subquery
+  # in that case we would have to execute the main query before we could evaluate the subquery for then filtering the main query based on the result of the subquery
   defp has_parent_as(fields, acc \\ false)
   defp has_parent_as(%Ecto.SubQuery{query: query}, acc) do
     has_parent_as(query.select.fields, acc) || if Enum.find(query.wheres, &has_parent_as(&1.expr, acc)), do: true, else: false
