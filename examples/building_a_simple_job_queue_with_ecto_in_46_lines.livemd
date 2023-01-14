@@ -34,7 +34,7 @@ end
 defmodule Jobs do
   import Ecto.Query
 
-  def exectute_job() do
+  def execute_job() do
     %Job{mfa: [{m, f, a}], id: id} =
       Job
       |> order_by(asc: :inserted_at)
@@ -66,6 +66,6 @@ Repo.delete_all(Job)
 Repo.insert!(%Job{mfa: [{IO, :inspect, ["Hello World!"]}]})
 Repo.insert!(%Job{mfa: [{IO, :inspect, ["Bonjour Monde!"]}]})
 
-"Hello World!" = Jobs.exectute_job()
-"Bonjour Monde!" = Jobs.exectute_job()
+"Hello World!" = Jobs.execute_job()
+"Bonjour Monde!" = Jobs.execute_job()
 ```

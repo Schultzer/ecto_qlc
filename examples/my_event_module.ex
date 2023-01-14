@@ -39,11 +39,11 @@ defmodule MyEventModule do
     {:ok, state}
   end
 
-  defp __handle_event__({:mnesia_system_event, {:mnesia_checkpoint_activated, _chechpoint}}, state) do
+  defp __handle_event__({:mnesia_system_event, {:mnesia_checkpoint_activated, _checkpoint}}, state) do
     {:ok, state}
   end
 
-  defp __handle_event__({:mnesia_system_event, {:mnesia_checkpoint_deactivated, _chechpoint}}, state) do
+  defp __handle_event__({:mnesia_system_event, {:mnesia_checkpoint_deactivated, _checkpoint}}, state) do
     {:ok, state}
   end
 
