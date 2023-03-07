@@ -272,7 +272,9 @@ defmodule EctoQLC.Adapters.MnesiaTest do
     end
 
     test "limit/2" do
+      limit = 2
       assert [%UserSession{}, %UserSession{}] = Repo.all(order_by(limit(UserSession, 2), [:user_id]))
+      assert [%UserSession{}, %UserSession{}] = Repo.all(order_by(limit(UserSession, ^limit), [:user_id]))
     end
 
     test "lock/2" do
@@ -285,7 +287,9 @@ defmodule EctoQLC.Adapters.MnesiaTest do
     end
 
     test "offset/2" do
+      offset = 2
       assert %UserSession{token: "C"} = Repo.one(order_by(offset(UserSession, 2), [:token]))
+      assert %UserSession{token: "C"} = Repo.one(order_by(offset(UserSession, ^offset), [:token]))
     end
 
     test "or_having/2" do

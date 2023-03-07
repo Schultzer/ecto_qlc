@@ -553,9 +553,9 @@ defmodule EctoQLC.Adapters.QLC do
       order_bys: order_bys,
       group_bys: group_bys(query),
       updates: updates(adapter_meta, query, params),
-      offset: offset(query),
+      offset: offset(query, params),
       lock: lock(adapter_meta, query, prefix),
-      limit: limit(adapter_meta, query, prefix),
+      limit: limit(adapter_meta, query, prefix, params),
      }, params, options}
   end
 
@@ -565,10 +565,11 @@ defmodule EctoQLC.Adapters.QLC do
   defp lock(adapter_meta, %Ecto.Query{lock: "sticky_write", from: %{source: {source, _module}}}, prefix), do: {{:table, to_table(adapter_meta, source, prefix, [])}, :sticky_write}
   defp lock(_adapter_meta, %Ecto.Query{lock: lock} = query, _prefix), do: raise Ecto.QueryError, query: query, message: "Unsupported lock: #{inspect lock}, supported locks: write, read, stickey_write"
 
-  defp offset(%Ecto.Query{offset: %{expr: expr}}), do: expr
-  defp offset(%Ecto.Query{}), do: 0
+  defp offset(%Ecto.Query{offset: %{expr: {:^, _, [idx]}}}, params), do: Enum.at(params, idx, idx)
+  defp offset(%Ecto.Query{offset: %{expr: expr}}, _params), do: expr
+  defp offset(%Ecto.Query{}, _params), do: 0
 
-  defp limit(adapter_meta, %Ecto.Query{limit: nil, from: %{source: {source, _module}}}, prefix) do
+  defp limit(adapter_meta, %Ecto.Query{limit: nil, from: %{source: {source, _module}}}, prefix, _params) do
     mod = :"#{String.downcase(List.last(Module.split(adapter_meta.adapter)))}"
     fun = if mod == :mnesia, do: :table_info, else: :info
     case apply(mod, fun, [to_table(adapter_meta, source, prefix, adapter_meta.opts), :size]) do
@@ -577,8 +578,9 @@ defmodule EctoQLC.Adapters.QLC do
       limit -> limit
     end
   end
-  defp limit(_adapter_meta, %Ecto.Query{limit: %{expr: expr}}, _prefix), do: expr
-  defp limit(_adapter_meta, %Ecto.Query{limit: limit}, _prefix), do: limit || 500
+  defp limit(_adapter_meta, %Ecto.Query{limit: %{expr: {:^, _, [idx]}}}, _prefix, params), do: Enum.at(params, idx, idx)
+  defp limit(_adapter_meta, %Ecto.Query{limit: %{expr: expr}}, _prefix, _params), do: expr
+  defp limit(_adapter_meta, %Ecto.Query{limit: limit}, _prefix, _params), do: limit || 500
 
   defp group_bys(%Ecto.Query{group_bys: group_bys, sources: sources}) do
     Enum.reduce(group_bys, [], fn
