@@ -280,7 +280,7 @@ defmodule EctoQLC.Adapters.QLC do
   end
   def execute_ddl(%{adapter: EctoQLC.Adapters.ETS} = adapter_meta, {command, %Table{} = table, _columns}, options) when command in @creates do
     options = Keyword.merge([write_concurrency: true, read_concurrency: true], Keyword.merge(adapter_meta.opts, List.wrap(table.options) ++ options))
-    options = [:set, :public, :named_table, {:heir, adapter_meta.pid, %{}}] ++ Keyword.take(options, ~w[write_concurrency read_concurrency keypos heir heir decentralized_counters compressed]a)
+    options = [:set, :public, :named_table, {:heir, GenServer.whereis(:__ecto_qlc__) || self(), %{}}] ++ Keyword.take(options, ~w[write_concurrency read_concurrency keypos heir heir decentralized_counters compressed]a)
     table = to_table(adapter_meta, table.name, table.prefix, options)
     with :undefined <- :ets.info(table),
          ^table     <- :ets.new(table, options) do
@@ -318,7 +318,8 @@ defmodule EctoQLC.Adapters.QLC do
     end
   end
   def execute_ddl(%{adapter: EctoQLC.Adapters.ETS} = adapter_meta, {command, %Table{} = table, _columns}, options) when command in @drops do
-    _table = to_table(adapter_meta, table.name, table.prefix, options)
+    table = to_table(adapter_meta, table.name, table.prefix, options)
+    :ets.delete(table)
     {:ok, []}
   end
   def execute_ddl(%{adapter: EctoQLC.Adapters.Mnesia} = adapter_meta, {command, %Table{} = table, _columns}, options) when command in @drops do
@@ -350,7 +351,7 @@ defmodule EctoQLC.Adapters.QLC do
       {:aborted, resoan} -> {:ok, [{:warn, "#{inspect(resoan)}", []}]}
     end
   end
-  def execute_ddl(%{adapter: EctoQLC.Adapters.Mnesia} = adapter_meta, {command, %Index{columns: [column]} = index, _}, options) when command in @drops do
+  def execute_ddl(%{adapter: EctoQLC.Adapters.Mnesia} = adapter_meta, {command, %Index{columns: [column]} = index, _mode}, options) when command in @drops do
     case :mnesia.del_table_index(to_table(adapter_meta, index.name, index.prefix, options), column) do
       {:atomic, :ok} -> {:ok, []}
       {:aborted, {:no_exists, _table, _}} when command == :drop_if_exists -> {:ok, []}
@@ -362,6 +363,9 @@ defmodule EctoQLC.Adapters.QLC do
     {:ok, [{:warn, "Mnesia adapter does not support index with multiply columns", []}]}
   end
   def execute_ddl(adapter_meta, {_command, %Index{}}, _options) do
+    {:ok, [{:warn, "#{adapter_meta.adapter} adapter does not support index", []}]}
+  end
+  def execute_ddl(adapter_meta, {_command, %Index{}, _mode}, _options) do
     {:ok, [{:warn, "#{adapter_meta.adapter} adapter does not support index", []}]}
   end
   def execute_ddl(adapter_meta, {:rename, %Table{} = _current_table, %Table{} = _new_table}, _options) do
@@ -836,6 +840,9 @@ defmodule EctoQLC.Adapters.QLC do
       {<<s::binary-size(1), _::binary()>> = source, nil, prefix} when adapter_meta.adapter == EctoQLC.Adapters.Mnesia ->
         attributes = :mnesia.table_info(to_table(adapter_meta, source, prefix, options), :attributes)
         to_element(adapter_meta, column, tl(attributes), [hd(attributes)], "#{String.upcase(s)}#{idx}")
+
+      {"schema_migrations", nil, _prefix} ->
+        to_element(adapter_meta, column, Ecto.Migration.SchemaMigration.__schema__(:fields), Ecto.Migration.SchemaMigration.__schema__(:primary_key), "S#{idx}")
 
       {<<s::binary-size(1), _::binary()>>, module, _prefix} ->
         to_element(adapter_meta, column, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}")

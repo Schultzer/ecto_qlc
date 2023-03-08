@@ -508,4 +508,10 @@ defmodule EctoQLC.Adapters.ETSTest do
       assert [%User{password_hash: "password_hash", updated_at: ^now}] = Repo.all(User)
     end
   end
+
+  describe "migrations" do
+    test "down", %{migrations: migrations} do
+      assert [:ok, :ok, :ok] == Enum.map(migrations, fn {version, module} -> Ecto.Migrator.down(Repo, version, module, log: false) end)
+    end
+  end
 end
