@@ -91,8 +91,8 @@ defmodule EctoQLC.Adapters.QLC do
       end
 
       @impl Ecto.Adapter.Schema
-      def delete(adapter_meta, schema_meta, filters, options) do
-        EctoQLC.Adapters.QLC.delete(@driver, adapter_meta, schema_meta, filters, options)
+      def delete(adapter_meta, schema_meta, filters, returning, options) do
+        EctoQLC.Adapters.QLC.delete(@driver, adapter_meta, schema_meta, filters, returning, options)
       end
 
       @impl Ecto.Adapter.Schema
@@ -548,8 +548,8 @@ defmodule EctoQLC.Adapters.QLC do
     raise Ecto.QueryError, query: query, message: "QLC adapter does not support combinations like: #{Enum.map_join(combinations, ", ", fn {k, _} -> k end)}"
   end
   def prepare(adapter_meta, query_meta, %Ecto.Query{} = query, params, options) do
-    if query.select && Enum.any?(query.select.fields, &has_fragment/1), do: raise Ecto.QueryError, query: query, message: "QLC adapter does not support fragemnt in select clauses"
-    if query.wheres |> Enum.flat_map(&(&1.subqueries)) |> Enum.any?(&has_parent_as/1), do: raise Ecto.QueryError, query: query, message: "QLC adapter does not support parent_as in a subquery's where clauses"
+    if query.select && Enum.any?(query.select.fields, &has_fragment/1), do: raise(Ecto.QueryError, query: query, message: "QLC adapter does not support fragemnt in select clauses")
+    if query.wheres |> Enum.flat_map(&(&1.subqueries)) |> Enum.any?(&has_parent_as/1), do: raise(Ecto.QueryError, query: query, message: "QLC adapter does not support parent_as in a subquery's where clauses")
     options = options(query, options)
     prefix = options[:prefix] || query.from.prefix || query.prefix
     order_bys = if query.distinct && Keyword.keyword?(query.distinct.expr), do: [query.distinct | query.order_bys], else: query.order_bys
@@ -567,7 +567,7 @@ defmodule EctoQLC.Adapters.QLC do
   defp lock(adapter_meta, %Ecto.Query{lock: "write", from: %{source: {source, _module}}}, prefix), do: {{:table, to_table(adapter_meta, source, prefix, [])}, :write}
   defp lock(adapter_meta, %Ecto.Query{lock: "read", from: %{source: {source, _module}}}, prefix), do: {{:table, to_table(adapter_meta, source, prefix, [])}, :read}
   defp lock(adapter_meta, %Ecto.Query{lock: "sticky_write", from: %{source: {source, _module}}}, prefix), do: {{:table, to_table(adapter_meta, source, prefix, [])}, :sticky_write}
-  defp lock(_adapter_meta, %Ecto.Query{lock: lock} = query, _prefix), do: raise Ecto.QueryError, query: query, message: "Unsupported lock: #{inspect lock}, supported locks: write, read, stickey_write"
+  defp lock(_adapter_meta, %Ecto.Query{lock: lock} = query, _prefix), do: raise(Ecto.QueryError, query: query, message: "Unsupported lock: #{inspect lock}, supported locks: write, read, stickey_write")
 
   defp offset(%Ecto.Query{offset: %{expr: {:^, _, [idx]}}}, params), do: Enum.at(params, idx, idx)
   defp offset(%Ecto.Query{offset: %{expr: expr}}, _params), do: expr
@@ -648,7 +648,7 @@ defmodule EctoQLC.Adapters.QLC do
 
   defp options(%Ecto.Query{} = query, options) do
     unique = unique?(query)
-    if options[:unique] && unique, do: raise Ecto.QueryError, query: query, message: "QLC does not support mixing distinct in queries and unique options"
+    if options[:unique] && unique, do: raise(Ecto.QueryError, query: query, message: "QLC does not support mixing distinct in queries and unique options")
     options
     # |> Keyword.put_new(:unique, unique)
     |> Enum.take_while(fn
@@ -656,7 +656,7 @@ defmodule EctoQLC.Adapters.QLC do
       k -> k in ~w[cache unique]a
     end)
     |> Enum.map(fn
-      {:join, join} when join not in ~w[any merge lookup nested_loop]a -> raise Ecto.QueryError, query: query, message: "QLC only supports: :any, :merge, :lookup or :nested_loop joins, got: `#{inspect(join)}`"
+      {:join, join} when join not in ~w[any merge lookup nested_loop]a -> raise(Ecto.QueryError, query: query, message: "QLC only supports: :any, :merge, :lookup or :nested_loop joins, got: `#{inspect(join)}`")
       x -> x
     end)
   end
@@ -680,20 +680,20 @@ defmodule EctoQLC.Adapters.QLC do
      else
       '{#{Enum.map_join(0..count, ", ", fn idx ->
         case elem(query.sources, idx) do
-          {<<s::binary-size(1), _::binary()>> = source, nil, prefix} ->
+          {<<s::binary-size(1), _::binary>> = source, nil, prefix} ->
             table = to_table(adapter_meta, source, prefix, options)
             [primary_keys | fields] = if mod == :mnesia and table in :mnesia.system_info(:tables), do: :mnesia.table_info(table, :attributes), else: [:version, :inserted_at]
             primary_keys = if source == "schema_migrations", do: [:version], else: [primary_keys]
             Enum.map_join(fields, ", ", &to_element(adapter_meta, &1, fields, primary_keys, "#{String.upcase(s)}#{idx}"))
 
-          {<<s::binary-size(1), _::binary()>>, module, _} ->
+          {<<s::binary-size(1), _::binary>>, module, _} ->
             Enum.map_join(module.__schema__(:fields), ", ", &to_element(adapter_meta, &1, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}"))
 
-          %{query: %{sources: {{<<s::binary-size(1), _::binary()>>, module, _}}}} ->
+          %{query: %{sources: {{<<s::binary-size(1), _::binary>>, module, _}}}} ->
             Enum.map_join(module.__schema__(:fields), ", ", &to_element(adapter_meta, &1, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}"))
 
           %{query: query} ->
-            {<<s::binary-size(1), _::binary()>>, module, _} = elem(query.sources, idx)
+            {<<s::binary-size(1), _::binary>>, module, _} = elem(query.sources, idx)
             Enum.map_join(module.__schema__(:fields), ", ", &to_element(adapter_meta, &1, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}"))
 
         end
@@ -711,13 +711,13 @@ defmodule EctoQLC.Adapters.QLC do
     table_opts = Keyword.take(options, take)
     generators = Enum.map_join(0..count, ", ", fn idx ->
       case elem(query.sources, idx) do
-      {<<s::binary-size(1), _::binary()>> = source, _module, _} ->
+      {<<s::binary-size(1), _::binary>> = source, _module, _} ->
       "#{String.upcase(s)}#{idx} <- #{mod}:table('#{to_table(adapter_meta, source, prefix, options)}', [#{Enum.map_join(table_opts, ", ", fn {k, v} -> "{#{k}, #{v}}" end)}])"
-      %{query: %{sources: {{<<s::binary-size(1), _::binary()>> = source, _module, _}}}} ->
+      %{query: %{sources: {{<<s::binary-size(1), _::binary>> = source, _module, _}}}} ->
         "#{String.upcase(s)}#{idx} <- #{mod}:table('#{to_table(adapter_meta, source, prefix, options)}', [#{Enum.map_join(table_opts, ", ", fn {k, v} -> "{#{k}, #{v}}" end)}])"
 
       %{query: %{sources: sources}} ->
-        {<<s::binary-size(1), _::binary()>> = source, _module, _} = elem(sources, idx)
+        {<<s::binary-size(1), _::binary>> = source, _module, _} = elem(sources, idx)
         "#{String.upcase(s)}#{idx} <- #{mod}:table('#{to_table(adapter_meta, source, prefix, options)}', [#{Enum.map_join(table_opts, ", ", fn {k, v} -> "{#{k}, #{v}}" end)}])"
       end
     end)
@@ -759,7 +759,7 @@ defmodule EctoQLC.Adapters.QLC do
 
   defp to_order(_query, :asc), do: :ascending
   defp to_order(_query, :desc), do: :descending
-  defp to_order(query, order), do: raise Ecto.QueryError, query: query, message: "QLC does not support ordering by: #{inspect order}"
+  defp to_order(query, order), do: raise(Ecto.QueryError, query: query, message: "QLC does not support ordering by: #{inspect order}")
 
   defp expr({_, _,[{{_, _, [{:parent_as, _, _}, _]}, _, _}, _]}, _query), do: ""
   defp expr({_, _,[_, {{_, _, [{:parent_as, _, _}, _]}, _, _}]}, _query), do: ""
@@ -793,7 +793,7 @@ defmodule EctoQLC.Adapters.QLC do
   defp expr({:not = operator, mdl, [{:in, mdr, [left, %Ecto.SubQuery{} = subquery]}]}, {adapter_meta, _query_meta, query, params, options} = q), do: expr({operator, mdl, [{:in, mdr, [left, elem(execute(adapter_meta, query, {:all, subquery.query}, params, options), 1)]}]}, q)
   defp expr({:not = operator, _, [{:in, _, _} = expr]}, query), do: unroll(expr, query, operator)
   defp expr({:not = operator, [], [{:is_nil, _, [{{:., _, [{:&, _, [index]}, column]}, _, _}]}]}, {adapter_meta, _query_meta, query, _params, _options}) do
-    {<<s::binary-size(1), _::binary()>>, module, _prefix} = elem(query.sources, index)
+    {<<s::binary-size(1), _::binary>>, module, _prefix} = elem(query.sources, index)
     "#{to_element(adapter_meta, column, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{index}")} #{to_erlang_term(operator)} nil"
   end
   defp expr({:not, _, [expr]}, query) do
@@ -837,20 +837,20 @@ defmodule EctoQLC.Adapters.QLC do
   defp expr({:parent_as, _, [key]}, {_adapter_meta, query_meta, _query, _params, _options}), do: query_meta.aliases[key]
   defp expr({:., _, [{:&, _, [idx]}, column]}, {adapter_meta, _query_meta, query, _params, options}) do
     case elem(query.sources, idx) do
-      {<<s::binary-size(1), _::binary()>> = source, nil, prefix} when adapter_meta.adapter == EctoQLC.Adapters.Mnesia ->
+      {<<s::binary-size(1), _::binary>> = source, nil, prefix} when adapter_meta.adapter == EctoQLC.Adapters.Mnesia ->
         attributes = :mnesia.table_info(to_table(adapter_meta, source, prefix, options), :attributes)
         to_element(adapter_meta, column, tl(attributes), [hd(attributes)], "#{String.upcase(s)}#{idx}")
 
       {"schema_migrations", nil, _prefix} ->
         to_element(adapter_meta, column, Ecto.Migration.SchemaMigration.__schema__(:fields), Ecto.Migration.SchemaMigration.__schema__(:primary_key), "S#{idx}")
 
-      {<<s::binary-size(1), _::binary()>>, module, _prefix} ->
+      {<<s::binary-size(1), _::binary>>, module, _prefix} ->
         to_element(adapter_meta, column, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}")
     end
   end
   defp expr({:., _, [{:parent_as, _, [key]}, column]}, {adapter_meta, query_meta, _query, _params, _options}) do
     idx = query_meta.aliases[key]
-    {<<s::binary-size(1), _::binary()>>, module, _prefix} = elem(query_meta.sources, query_meta.aliases[key])
+    {<<s::binary-size(1), _::binary>>, module, _prefix} = elem(query_meta.sources, query_meta.aliases[key])
     to_element(adapter_meta, column, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{idx}")
   end
   defp expr({:in, metadata, [left, %Ecto.SubQuery{} = subquery]}, {adapter_meta, _query_meta, query, params, options} = q), do: expr({:in, metadata, [left, elem(execute(adapter_meta, query, {:all, subquery.query}, params, options), 1)]}, q)
@@ -914,10 +914,15 @@ defmodule EctoQLC.Adapters.QLC do
   defp expr({:^, _, [idx]}, _row, {_adapter_meta, _query_meta, _query, params, _options}), do: Enum.at(params, idx, idx)
   defp expr({:like, _, [left, right]}, row, query), do: String.match?(expr(left, row, query), Regex.compile!(expr(right, row, query)))
   defp expr({:ilike, _, [left, right]}, row, query), do: String.match?(expr(left, row, query), Regex.compile!(expr(right, row, query), [:caseless]))
-  defp expr({:json_extract_path, _, [left, right]}, row, query), do: Enum.reduce(expr(right, row, query), expr(left, row, query), fn
+  defp expr({:json_extract_path, _, [left, right]}, row, query) do
+    Enum.reduce(expr(right, row, query), expr(left, row, query), fn
+    _k, nil = data -> data
     k, %_{} = struct -> Map.get(struct, String.to_existing_atom(k))
+    k, data when is_integer(k) and is_list(data) -> Enum.at(data, k)
+    k, data when is_integer(k) and is_tuple(data) -> elem(data, k)
     k, data -> data[k] || data[String.to_existing_atom(k)]
   end)
+  end
   defp expr({operator, md, [%Ecto.Query.Tagged{value: expr}, right, interval]}, row, query) when operator in ~w[datetime_add date_add]a do
     expr({operator, md, [expr, right, interval]}, row, query)
   end
@@ -1027,7 +1032,7 @@ defmodule EctoQLC.Adapters.QLC do
   defp update(:dets = mod, table, row, query), do: mod.insert(table, Enum.reduce(Keyword.values(query.updates), row, fn {idx, value}, row -> :erlang.setelement(idx, row, value) end))
 
   @doc false
-  def delete(mod, adapter_meta, %{source: source, prefix: prefix, schema: schema}, filters, options) when mod in ~w[dets ets]a do
+  def delete(mod, adapter_meta, %{source: source, prefix: prefix, schema: schema}, filters, _returning, options) when mod in ~w[dets ets]a do
     table = to_table(adapter_meta, source, prefix, options)
     ms = to_match_spec(adapter_meta, schema, filters)
     {query_time, count} = :timer.tc(mod, :select_delete, [table, ms])
@@ -1038,7 +1043,7 @@ defmodule EctoQLC.Adapters.QLC do
     end
     |> log(source, "DELETE #{inspect source} #{inspect filters} MATCHSPEC #{inspect ms}", query_time, 0, 0, 0, :delete_all, adapter_meta.telemetry, filters, options ++ adapter_meta.opts)
   end
-  def delete(:mnesia = mod, adapter_meta, %{source: source, prefix: prefix, schema: schema}, filters, options) do
+  def delete(:mnesia = mod, adapter_meta, %{source: source, prefix: prefix, schema: schema}, filters, _returning, options) do
     ms = to_match_spec(adapter_meta, schema, filters)
     fun = fn ->
             with table <- to_table(adapter_meta, source, prefix, options),
@@ -1294,7 +1299,7 @@ defmodule EctoQLC.Adapters.QLC do
 
   defp unroll({:in, _, [{{:., [], [{:&, [], [index]}, column]}, _, _}, values]}, {adapter_meta, _query_meta, query, _params, _options} = q, operator) do
     [v | values] = unbind(values, q)
-    {<<s::binary-size(1), _::binary()>>, module, _prefix} = elem(query.sources, index)
+    {<<s::binary-size(1), _::binary>>, module, _prefix} = elem(query.sources, index)
     el = to_element(adapter_meta, column, module.__schema__(:fields), module.__schema__(:primary_key), "#{String.upcase(s)}#{index}")
     values
     |> Enum.reduce(["#{el} #{to_erlang_term(operator)} #{v}"], fn v, acc -> acc ++ [" orelse #{el} #{to_erlang_term(operator)} #{v}"] end)
@@ -1306,7 +1311,7 @@ defmodule EctoQLC.Adapters.QLC do
   defp unbind([_ | _] = values, query), do: Enum.map(values, &unbind(&1, query))
   defp unbind(value, _meta), do: to_erlang_term(value)
 
-  defp to_erlang_term(<<value::binary()>>), do: '<<"#{value}">>'
+  defp to_erlang_term(<<value::binary>>), do: '<<"#{value}">>'
   defp to_erlang_term(:or), do: :orelse
   defp to_erlang_term(:and), do: :andalso
   defp to_erlang_term(:<=), do: :"=<"

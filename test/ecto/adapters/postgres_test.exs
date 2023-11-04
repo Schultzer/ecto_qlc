@@ -307,7 +307,7 @@ defmodule EctoQLC.Adapters.PostgresTest do
       refute Repo.one(where(User, [u], u.email not in subquery(select(User, [:email]))))
       assert Repo.one(select(User, [u], u.email in subquery(select(User, [:email]))))
       assert [%Decimal{}] = Repo.all(from u in subquery(where(User, email: "user@example.com")), select: avg(u.id))
-      assert [%User{email: "user@example.com"}] = Repo.all(join(User, :inner, [u], t in subquery(where(User, email: "user@example.com")), as: :users))
+      assert [%User{email: "user@example.com"}] = Repo.all(join(User, :inner, [u], t in subquery(where(User, email: "user@example.com")), on: true, as: :users))
     end
 
     test "union/1" do

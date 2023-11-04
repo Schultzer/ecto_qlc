@@ -50,7 +50,7 @@ defmodule EctoQlc.MixProject do
     if path = System.get_env("ECTO_PATH") do
       {:ecto, path: path}
     else
-      {:ecto, "~> 3.9.0"}
+      {:ecto, git: "https://github.com/elixir-ecto/ecto.git"}
     end
   end
 
@@ -58,7 +58,7 @@ defmodule EctoQlc.MixProject do
     if path = System.get_env("ECTO_SQL_PATH") do
       {:ecto_sql, path: path}
     else
-      {:ecto_sql, "~> 3.9.0"}
+      {:ecto_sql, git: "https://github.com/elixir-ecto/ecto_sql.git"}
     end
   end
 
