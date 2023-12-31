@@ -333,7 +333,7 @@ defmodule EctoQLC.Adapters.QLC do
     attributes = :mnesia.table_info(table, :attributes)
     new_attributes = Enum.reduce(changes, attributes, fn change, attributes -> update_attributes(change, attributes) end)
     with true <- attributes != new_attributes,
-      {:atomic, :ok} <- :mnesia.transform_table(table, &Enum.reduce(changes, &1, fn change, row -> update_row(row, change, attributes) end), new_attributes) do
+      {:atomic, :ok} <- :mnesia.transform_table(table, &Enum.reduce(changes, &1, fn change, row -> update_row(adapter_meta, row, change, attributes) end), new_attributes) do
       {:ok, []}
     else
       false -> {:ok, []}
@@ -446,32 +446,27 @@ defmodule EctoQLC.Adapters.QLC do
   defp update_attributes(_change, attributes), do: attributes
 
   @doc false
-  def update_row(row, {:add, _column, _type, options}, _attributes) do
+  def update_row(_adapter_meta, row, {:add, _column, _type, options}, _attributes) do
     Tuple.append(row, options[:default])
   end
-  def update_row(row, {:add_if_not_exists, column, _type, options}, attributes) do
+  def update_row(_adapter_meta, row, {:add_if_not_exists, column, _type, options}, attributes) do
     if column not in attributes, do: Tuple.append(row, options[:default]), else: row
   end
-  def update_row(row, {:remove, column, _type, _options}, attributes) do
+  def update_row(_adapter_meta, row, {:remove, column, _type, _options}, attributes) do
     Tuple.delete_at(row, Enum.find_index(attributes, &(&1 == column)))
   end
-  def update_row(row, {:remove_if_exists, column, _type, _options}, attributes) do
+  def update_row(_adapter_meta, row, {:remove_if_exists, column, _type, _options}, attributes) do
     if column in attributes, do: Tuple.delete_at(row, Enum.find_index(attributes, &(&1 == column))), else: row
   end
-  def update_row(row, {:modify, column, type, options}, attributes) do
+  def update_row(_adapter_meta, row, {:modify, column, type, options}, attributes) do
     idx = Enum.find_index(attributes, &(&1 == column))
     :erlang.setelement(idx, row, cast(elem(row, idx), options[:from], type))
   end
-  def update_row(schema, fields, row) do
-    schema.__schema__(:fields) -- schema.__schema__(:primary_key)
-    |> Enum.reduce({1, row}, fn column, {idx, row} ->
-      if value = fields[column] do
-        {idx + 1, :erlang.setelement(idx, row, value)}
-      else
-        {idx + 1, row}
-      end
+  def update_row(adapter_meta, schema, fields, row) do
+    Enum.reduce(fields, row, fn {column, value}, row ->
+      idx = get_index(adapter_meta, column, schema.__schema__(:fields), schema.__schema__(:primary_key))
+      :erlang.setelement(idx, row, value)
     end)
-    |> elem(1)
   end
 
   defp get_key([], [primary_key | _ ], fields), do: fields[primary_key]
@@ -1189,7 +1184,7 @@ defmodule EctoQLC.Adapters.QLC do
     options = Keyword.take(Keyword.merge([file: '#{file}'],  options), ~w[access auto_save estimated_no_objects file max_no_slots min_no_slots keypos ram_file repair type]a)
     {query_time, result} = with {:ok, ^table} <- mod.open_file(table, options),
                                         [row] <- mod.lookup(table, key),
-                            {query_time, :ok} <- :timer.tc(mod, :insert, [table, update_row(schema, fields, row)]),
+                            {query_time, :ok} <- :timer.tc(mod, :insert, [table, update_row(adapter_meta, schema, fields, row)]),
                                           :ok <- mod.sync(table),
                            {decode_time, row} <- :timer.tc(Enum, :map, [returning, &fields[&1]]) do
                              {query_time + decode_time, {:ok, row}}
@@ -1215,7 +1210,7 @@ defmodule EctoQLC.Adapters.QLC do
    key = to_key(params)
    fun = fn ->
             with [row] <- mod.wread({table, key}),
-            :ok <- mod.write(update_row(schema, fields, row)) do
+            :ok <- mod.write(update_row(adapter_meta, schema, fields, row)) do
               {:ok, []}
             else
             {:error, _resaon} ->
