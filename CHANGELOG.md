@@ -1,6 +1,6 @@
 # Changelog
 
-## Ecto QLC v0.2.0 TBA
+## Ecto QLC v0.2.0 January 1st, 2024
 
 ### Enhancements
 
